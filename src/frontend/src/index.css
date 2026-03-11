@@ -1,0 +1,108 @@
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("/assets/fonts/BricolageGrotesque.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Outfit";
+  src: url("/assets/fonts/Outfit.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0.97 0.015 85;
+    --foreground: 0.22 0.04 50;
+    --card: 0.99 0.005 80;
+    --card-foreground: 0.22 0.04 50;
+    --popover: 0.99 0.005 80;
+    --popover-foreground: 0.22 0.04 50;
+    --primary: 0.4 0.13 145;
+    --primary-foreground: 0.98 0.01 85;
+    --secondary: 0.92 0.04 85;
+    --secondary-foreground: 0.22 0.04 50;
+    --muted: 0.93 0.02 80;
+    --muted-foreground: 0.52 0.04 60;
+    --accent: 0.75 0.17 65;
+    --accent-foreground: 0.22 0.04 50;
+    --destructive: 0.56 0.2 25;
+    --destructive-foreground: 0.98 0.01 85;
+    --border: 0.88 0.03 80;
+    --input: 0.88 0.03 80;
+    --ring: 0.4 0.13 145;
+    --radius: 0.75rem;
+    --chart-1: 0.4 0.13 145;
+    --chart-2: 0.75 0.17 65;
+    --chart-3: 0.65 0.15 200;
+    --chart-4: 0.6 0.18 30;
+    --chart-5: 0.55 0.14 320;
+    --sidebar: 0.97 0.015 85;
+    --sidebar-foreground: 0.22 0.04 50;
+    --sidebar-primary: 0.4 0.13 145;
+    --sidebar-primary-foreground: 0.98 0.01 85;
+    --sidebar-accent: 0.92 0.04 85;
+    --sidebar-accent-foreground: 0.22 0.04 50;
+    --sidebar-border: 0.88 0.03 80;
+    --sidebar-ring: 0.4 0.13 145;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display;
+  }
+}
+
+@layer components {
+  .mobile-container {
+    @apply max-w-[420px] mx-auto min-h-screen bg-background relative;
+  }
+
+  .tab-content {
+    @apply pb-20 overflow-y-auto;
+  }
+
+  .score-bar {
+    @apply h-2 rounded-full bg-muted overflow-hidden;
+  }
+
+  .score-fill {
+    @apply h-full rounded-full transition-all duration-700;
+  }
+
+  .chat-bubble-bot {
+    @apply bg-card text-card-foreground rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm max-w-[80%];
+  }
+
+  .chat-bubble-user {
+    @apply bg-primary text-primary-foreground rounded-2xl rounded-tr-sm px-4 py-3 max-w-[80%];
+  }
+
+  .price-up {
+    @apply text-emerald-600;
+  }
+  .price-down {
+    @apply text-red-500;
+  }
+  .price-stable {
+    @apply text-amber-600;
+  }
+}
