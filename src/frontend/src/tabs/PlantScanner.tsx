@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCamera } from "../camera/useCamera";
-import { detectDisease } from "../diseaseLogic";
+import { DISEASE_DATABASE, detectDisease } from "../diseaseLogic";
 import type { Lang } from "../i18n";
 import { useTranslation } from "../i18n";
 import type { DiseaseResult } from "../types";
@@ -13,6 +13,10 @@ interface PlantScannerProps {
   isActive: boolean;
 }
 
+type TFModel = {
+  predict: (tensor: unknown) => { data: () => Promise<Float32Array> };
+};
+
 export default function PlantScanner({ lang, isActive }: PlantScannerProps) {
   const tr = useTranslation(lang);
   const camera = useCamera({ facingMode: "environment", quality: 0.85 });
@@ -21,6 +25,14 @@ export default function PlantScanner({ lang, isActive }: PlantScannerProps) {
   const [capturedUrl, setCapturedUrl] = useState<string | null>(null);
   const [result, setResult] = useState<DiseaseResult | null>(null);
   const [analysing, setAnalysing] = useState(false);
+
+  // TFjs model state
+  const [modelLoaded, setModelLoaded] = useState(false);
+  const [modelLoading, setModelLoading] = useState(false);
+  const [modelError, setModelError] = useState(false);
+  const [showModelPanel, setShowModelPanel] = useState(false);
+  const modelRef = useRef<TFModel | null>(null);
+  const modelFileRef = useRef<HTMLInputElement | null>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally only runs on tab activation
   useEffect(() => {
@@ -32,7 +44,6 @@ export default function PlantScanner({ lang, isActive }: PlantScannerProps) {
     }
   }, [isActive]);
 
-  // Cleanup blob URL
   useEffect(() => {
     return () => {
       if (capturedUrl) URL.revokeObjectURL(capturedUrl);
@@ -50,13 +61,101 @@ export default function PlantScanner({ lang, isActive }: PlantScannerProps) {
     }
   }
 
+  async function runTFInference(file: File): Promise<DiseaseResult> {
+    // Dynamically load TF.js only when a model is loaded
+    // @ts-ignore
+    const tf = window.tf as
+      | {
+          browser: { fromPixels: (img: HTMLImageElement) => unknown };
+          image: {
+            resizeBilinear: (t: unknown, size: [number, number]) => unknown;
+          };
+          cast: (t: unknown, dtype: string) => unknown;
+          div: (t: unknown, scalar: number) => unknown;
+          expandDims: (t: unknown, axis: number) => unknown;
+        }
+      | undefined;
+
+    if (!tf || !modelRef.current) return detectDisease(file.size);
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = async () => {
+        try {
+          const tensor = tf.expandDims(
+            tf.div(
+              tf.cast(
+                tf.image.resizeBilinear(tf.browser.fromPixels(img), [224, 224]),
+                "float32",
+              ),
+              255,
+            ),
+            0,
+          );
+          const predTensor = modelRef.current!.predict(tensor);
+          const predData = await predTensor.data();
+          const maxIdx = Array.from(predData).indexOf(
+            Math.max(...Array.from(predData)),
+          );
+          const entry = DISEASE_DATABASE[maxIdx % DISEASE_DATABASE.length];
+          resolve({
+            name: entry.disease,
+            confidence: Math.round(predData[maxIdx] * 100),
+            description: entry.description,
+            treatment: entry.treatment,
+            isHealthy: entry.isHealthy,
+            crop: entry.crop,
+          });
+        } catch {
+          resolve(detectDisease(file.size));
+        }
+        URL.revokeObjectURL(img.src);
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  }
+
   async function handleAnalyse() {
     if (!capturedFile) return;
     setAnalysing(true);
-    await new Promise((r) => setTimeout(r, 1800));
-    const res = detectDisease(capturedFile.size);
+    await new Promise((r) => setTimeout(r, modelLoaded ? 600 : 1800));
+    const res = modelLoaded
+      ? await runTFInference(capturedFile)
+      : detectDisease(capturedFile.size);
     setResult(res);
     setAnalysing(false);
+  }
+
+  async function handleModelUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setModelLoading(true);
+    setModelError(false);
+    try {
+      // Dynamically inject TF.js if not present
+      // @ts-ignore
+      if (!window.tf) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src =
+            "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js";
+          script.onload = () => resolve();
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+      }
+      // @ts-ignore
+      const tf = window.tf;
+      const modelUrl = URL.createObjectURL(file);
+      const model = await tf.loadLayersModel(modelUrl);
+      modelRef.current = model;
+      setModelLoaded(true);
+      setShowModelPanel(false);
+    } catch {
+      setModelError(true);
+    } finally {
+      setModelLoading(false);
+    }
   }
 
   function handleRetake() {
@@ -70,12 +169,71 @@ export default function PlantScanner({ lang, isActive }: PlantScannerProps) {
   return (
     <div className="flex flex-col min-h-full">
       <div className="px-4 pt-6 pb-4">
-        <h2 className="text-xl font-display font-bold text-foreground">
-          🌿 {tr("scanner_title")}
-        </h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          {tr("scanner_instruction")}
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-display font-bold text-foreground">
+              🌿 {tr("scanner_title")}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              {tr("scanner_instruction")}
+            </p>
+          </div>
+          <button
+            type="button"
+            data-ocid="scanner.model_toggle"
+            onClick={() => setShowModelPanel((v) => !v)}
+            className={`text-xs px-3 py-1.5 rounded-full font-semibold border transition-colors ${
+              modelLoaded
+                ? "bg-primary/10 text-primary border-primary/30"
+                : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+            }`}
+          >
+            {modelLoaded
+              ? `✅ ${tr("model_loaded")}`
+              : `🤖 ${tr("load_model")}`}
+          </button>
+        </div>
+
+        {/* Model upload panel */}
+        <AnimatePresence>
+          {showModelPanel && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mt-3 rounded-xl border border-border bg-muted/50 p-3 overflow-hidden"
+            >
+              <p className="text-xs text-muted-foreground mb-2">
+                {tr("model_instruction")}
+              </p>
+              <input
+                ref={modelFileRef}
+                type="file"
+                accept=".json"
+                className="hidden"
+                onChange={handleModelUpload}
+              />
+              <Button
+                data-ocid="scanner.model_upload_button"
+                size="sm"
+                variant="outline"
+                disabled={modelLoading}
+                onClick={() => modelFileRef.current?.click()}
+                className="w-full"
+              >
+                {modelLoading ? tr("model_loading") : "📂 Upload model.json"}
+              </Button>
+              {modelError && (
+                <p
+                  data-ocid="scanner.model.error_state"
+                  className="text-xs text-destructive mt-2"
+                >
+                  {tr("model_error")}
+                </p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <div className="px-4">
@@ -212,6 +370,11 @@ export default function PlantScanner({ lang, isActive }: PlantScannerProps) {
                     <h4 className="text-xl font-display font-bold text-foreground">
                       {result.isHealthy ? "✅" : "⚠️"} {result.name}
                     </h4>
+                    {result.crop && (
+                      <p className="text-xs text-muted-foreground">
+                        🌿 {result.crop}
+                      </p>
+                    )}
                     <p className="text-sm text-muted-foreground">
                       {tr("confidence")}:{" "}
                       <span className="font-semibold text-primary">

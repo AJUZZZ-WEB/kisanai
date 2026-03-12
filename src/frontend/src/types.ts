@@ -29,6 +29,18 @@ export interface DiseaseResult {
   description: string;
   treatment: string[];
   isHealthy: boolean;
+  crop?: string;
+}
+
+export interface DiseaseEntry {
+  id: string;
+  crop: string;
+  cropEmoji: string;
+  disease: string;
+  isHealthy: boolean;
+  symptoms: string;
+  description: string;
+  treatment: string[];
 }
 
 export interface MarketPrice {

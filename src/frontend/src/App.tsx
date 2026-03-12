@@ -9,11 +9,18 @@ import { useTranslation } from "./i18n";
 import AdvisoryChat from "./tabs/AdvisoryChat";
 import CropAdvisor from "./tabs/CropAdvisor";
 import Dashboard from "./tabs/Dashboard";
+import DiseaseEncyclopedia from "./tabs/DiseaseEncyclopedia";
 import MarketPrices from "./tabs/MarketPrices";
 import PlantScanner from "./tabs/PlantScanner";
 import type { CropRecommendation, RotationEntry, SoilParams } from "./types";
 
-type Tab = "dashboard" | "advisor" | "scanner" | "market" | "chat";
+type Tab =
+  | "dashboard"
+  | "advisor"
+  | "scanner"
+  | "market"
+  | "chat"
+  | "encyclopedia";
 
 const INITIAL_ROTATION: RotationEntry[] = [
   { id: "1", season: "Kharif", year: "2023", cropName: "Rice" },
@@ -81,7 +88,8 @@ export default function App() {
       | "nav_advisor"
       | "nav_scanner"
       | "nav_market"
-      | "nav_chat";
+      | "nav_chat"
+      | "nav_encyclopedia";
   }> = [
     {
       id: "dashboard",
@@ -108,6 +116,12 @@ export default function App() {
       labelKey: "nav_market",
     },
     { id: "chat", emoji: "💬", ocid: "nav.chat_tab", labelKey: "nav_chat" },
+    {
+      id: "encyclopedia",
+      emoji: "📚",
+      ocid: "nav.encyclopedia_tab",
+      labelKey: "nav_encyclopedia",
+    },
   ];
 
   return (
@@ -148,13 +162,16 @@ export default function App() {
               )}
               {activeTab === "market" && <MarketPrices lang={lang} />}
               {activeTab === "chat" && <AdvisoryChat lang={lang} />}
+              {activeTab === "encyclopedia" && (
+                <DiseaseEncyclopedia lang={lang} />
+              )}
             </motion.div>
           </AnimatePresence>
         </main>
 
         {/* Bottom nav */}
         <nav
-          className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[420px] bg-card border-t border-border flex z-50"
+          className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[420px] bg-card border-t border-border flex z-50 overflow-x-auto"
           style={{ boxShadow: "0 -4px 20px rgba(0,0,0,0.08)" }}
         >
           {tabs.map((tab) => (
@@ -163,14 +180,14 @@ export default function App() {
               key={tab.id}
               data-ocid={tab.ocid}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex flex-col items-center py-3 gap-0.5 transition-colors relative ${
+              className={`flex-1 flex flex-col items-center py-3 gap-0.5 transition-colors relative min-w-[56px] ${
                 activeTab === tab.id
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <span className="text-xl leading-none">{tab.emoji}</span>
-              <span className="text-[10px] font-semibold leading-tight truncate max-w-full px-1">
+              <span className="text-[9px] font-semibold leading-tight truncate max-w-full px-1">
                 {tr(tab.labelKey)}
               </span>
               {activeTab === tab.id && (

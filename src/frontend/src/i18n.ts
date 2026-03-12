@@ -7,6 +7,7 @@ const t = {
   nav_scanner: { en: "Plant Scanner", hi: "पौधा स्कैनर" },
   nav_market: { en: "Market", hi: "बाज़ार" },
   nav_chat: { en: "Chat", hi: "चैट" },
+  nav_encyclopedia: { en: "Diseases", hi: "रोग सूची" },
 
   // Dashboard
   welcome: { en: "Welcome back", hi: "वापस स्वागत है" },
@@ -65,6 +66,14 @@ const t = {
   treatment: { en: "Treatment Steps", hi: "उपचार के चरण" },
   start_camera: { en: "Start Camera", hi: "कैमरा शुरू करें" },
   camera_error: { en: "Camera not available", hi: "कैमरा उपलब्ध नहीं" },
+  load_model: { en: "Load AI Model (Optional)", hi: "AI मॉडल लोड करें (वैकल्पिक)" },
+  model_loaded: { en: "AI Model Loaded", hi: "AI मॉडल लोड हो गया" },
+  model_loading: { en: "Loading model...", hi: "मॉडल लोड हो रहा है..." },
+  model_instruction: {
+    en: "Upload your trained model.json file for real AI detection",
+    hi: "असली AI पहचान के लिए अपना model.json फ़ाइल अपलोड करें",
+  },
+  model_error: { en: "Failed to load model", hi: "मॉडल लोड नहीं हुआ" },
 
   // Market
   market_title: { en: "Market Prices", hi: "बाज़ार मूल्य" },
@@ -87,6 +96,21 @@ const t = {
   },
   login_btn: { en: "Login to Continue", hi: "जारी रखने के लिए लॉगिन करें" },
   logging_in: { en: "Logging in...", hi: "लॉगिन हो रहा है..." },
+
+  // Encyclopedia
+  encyclopedia_title: { en: "Disease Encyclopedia", hi: "रोग विश्वकोश" },
+  encyclopedia_subtitle: {
+    en: "38 plant diseases from Kaggle PlantVillage dataset",
+    hi: "Kaggle PlantVillage डेटासेट से 38 पौधे रोग",
+  },
+  encyclopedia_search_placeholder: {
+    en: "Search disease or crop...",
+    hi: "रोग या फसल खोजें...",
+  },
+  encyclopedia_results: { en: "diseases found", hi: "रोग मिले" },
+  symptoms: { en: "Symptoms", hi: "लक्षण" },
+  description: { en: "About", hi: "विवरण" },
+  no_results: { en: "No diseases found", hi: "कोई रोग नहीं मिला" },
 };
 
 export type TranslationKey = keyof typeof t;
