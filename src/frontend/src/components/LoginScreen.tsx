@@ -6,11 +6,11 @@ import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import type { Lang } from "../i18n";
-import { useTranslation } from "../i18n";
+import { LANGUAGES, useTranslation } from "../i18n";
 
 interface LoginScreenProps {
   lang: Lang;
-  onLangToggle: () => void;
+  onLangChange: (lang: Lang) => void;
   onLogin: () => void;
 }
 
@@ -20,7 +20,7 @@ type FormState = "idle" | "loading" | "success" | "error";
 
 export default function LoginScreen({
   lang,
-  onLangToggle,
+  onLangChange,
   onLogin,
 }: LoginScreenProps) {
   const { login, isLoggingIn } = useInternetIdentity();
@@ -69,14 +69,22 @@ export default function LoginScreen({
         <div className="absolute top-1/3 left-1/4 text-4xl opacity-15">☀️</div>
       </div>
 
-      {/* Language toggle */}
-      <button
-        type="button"
-        onClick={onLangToggle}
-        className="absolute top-6 right-6 bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-3 py-1.5 rounded-full transition-colors border border-white/30 z-10"
-      >
-        {lang === "en" ? "हिं" : "EN"}
-      </button>
+      {/* Language selector */}
+      <div className="absolute top-6 right-6 z-10">
+        <select
+          data-ocid="lang.select"
+          value={lang}
+          onChange={(e) => onLangChange(e.target.value as Lang)}
+          className="bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-3 py-1.5 rounded-full border border-white/30 cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/50"
+          style={{ appearance: "none" }}
+        >
+          {LANGUAGES.map((l) => (
+            <option key={l.code} value={l.code} style={{ color: "#000" }}>
+              {l.nativeLabel}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <motion.div
         initial={{ opacity: 0, y: 30 }}
@@ -134,9 +142,7 @@ export default function LoginScreen({
               data-ocid="login.input"
               type="text"
               autoComplete="username"
-              placeholder={
-                lang === "hi" ? "अपना नाम दर्ज करें" : "Enter your username"
-              }
+              placeholder={lang === "hi" ? "अपना नाम दर्ज करें" : tr("enter_name")}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="bg-white/15 border-white/25 text-white placeholder:text-white/40 focus:border-white/60 focus:ring-white/30 rounded-xl h-12"

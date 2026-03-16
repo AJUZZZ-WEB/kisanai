@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "motion/react";
 import type { Lang } from "../i18n";
-import { useTranslation } from "../i18n";
+import { LANGUAGES, useTranslation } from "../i18n";
 import type { CropRecommendation, SoilParams } from "../types";
 
 interface DashboardProps {
@@ -11,7 +11,7 @@ interface DashboardProps {
   lastSoil: SoilParams | null;
   lastRec: CropRecommendation | null;
   onScanClick: () => void;
-  onLangToggle: () => void;
+  onLangChange: (lang: Lang) => void;
 }
 
 export default function Dashboard({
@@ -20,7 +20,7 @@ export default function Dashboard({
   lastSoil,
   lastRec,
   onScanClick,
-  onLangToggle,
+  onLangChange,
 }: DashboardProps) {
   const tr = useTranslation(lang);
 
@@ -54,14 +54,19 @@ export default function Dashboard({
               {farmerName}
             </h2>
           </div>
-          <button
-            type="button"
-            data-ocid="dashboard.language_toggle"
-            onClick={onLangToggle}
-            className="bg-white/20 hover:bg-white/30 text-white text-sm font-semibold px-3 py-1.5 rounded-full transition-colors border border-white/30"
+          <select
+            data-ocid="lang.select"
+            value={lang}
+            onChange={(e) => onLangChange(e.target.value as Lang)}
+            className="bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-2 py-1.5 rounded-full border border-white/30 cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/50"
+            style={{ appearance: "none" }}
           >
-            {lang === "en" ? "हिं" : "EN"}
-          </button>
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code} style={{ color: "#000" }}>
+                {l.nativeLabel}
+              </option>
+            ))}
+          </select>
         </div>
 
         <motion.div
@@ -104,7 +109,7 @@ export default function Dashboard({
                   {lastSoil ? (
                     <p className="text-foreground font-semibold">
                       pH {lastSoil.ph.toFixed(1)} · {lastSoil.moisture}%{" "}
-                      {lang === "hi" ? "नमी" : "moisture"}
+                      {tr("moisture").replace(" %", "")}
                     </p>
                   ) : (
                     <p className="text-muted-foreground text-sm">
@@ -180,7 +185,7 @@ export default function Dashboard({
           style={{ background: "oklch(0.95 0.04 145)" }}
         >
           <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-1">
-            🌞 {lang === "hi" ? "आज की सलाह" : "Today's Tip"}
+            🌞 {tr("tip")}
           </p>
           <p className="text-sm text-foreground">
             {lang === "hi"

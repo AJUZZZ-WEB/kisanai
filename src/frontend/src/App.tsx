@@ -39,10 +39,6 @@ export default function App() {
 
   const tr = useTranslation(lang);
 
-  function toggleLang() {
-    setLang((l) => (l === "en" ? "hi" : "en"));
-  }
-
   function handleRecommendations(soil: SoilParams, recs: CropRecommendation[]) {
     setLastSoil(soil);
     if (recs.length > 0) setLastRec(recs[0]);
@@ -69,7 +65,7 @@ export default function App() {
     return (
       <LoginScreen
         lang={lang}
-        onLangToggle={toggleLang}
+        onLangChange={setLang}
         onLogin={() => setFormLoggedIn(true)}
       />
     );
@@ -147,7 +143,7 @@ export default function App() {
                   lastSoil={lastSoil}
                   lastRec={lastRec}
                   onScanClick={() => setActiveTab("scanner")}
-                  onLangToggle={toggleLang}
+                  onLangChange={setLang}
                 />
               )}
               {activeTab === "advisor" && (
