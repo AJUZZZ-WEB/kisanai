@@ -1,29 +1,38 @@
-# KisanAI
+# KisanAI – Kaggle Dataset Expansion
 
 ## Current State
-KisanAI has a Plant Scanner tab that uses the device camera to capture a plant image and runs a simulated disease detection returning one of 5 diseases (Healthy, Leaf Blight, Powdery Mildew, Root Rot, Aphid Infestation). The app has 5 tabs: Dashboard, Crop Advisor, Plant Scanner, Market Prices, Advisory Chat.
+- Plant Scanner has 38 PlantVillage disease classes with symptoms/treatments in `diseaseLogic.ts`
+- Disease Encyclopedia browses/filters these 38 entries
+- Market Prices shows 8 static crops with dummy prices
+- Crop Advisor uses rule-based logic in `cropLogic.ts`
+- i18n supports 7 languages (en, hi, ta, ml, te, kn, mr)
 
 ## Requested Changes (Diff)
 
 ### Add
-- All 38 Kaggle PlantVillage disease classes into `diseaseLogic.ts` (Apple Scab, Apple Black Rot, Cedar Apple Rust, Healthy variants for Apple, Blueberry, Cherry, Corn/Maize diseases, Grape diseases, Orange Haunglongbing, Peach diseases, Pepper Bell diseases, Potato diseases, Raspberry, Soybean, Squash, Strawberry, Tomato diseases, etc.) with descriptions and treatment steps.
-- A new "Disease Encyclopedia" tab (6th tab) with a searchable/filterable list of all 38 disease entries showing crop, disease name, symptoms, and treatment steps.
-- TensorFlow.js model upload/load support in PlantScanner so users can load their own trained `.json` model for real on-device inference instead of random simulation.
+- **Expanded PlantVillage disease database**: Break down the 38 classes into 54 entries with crop variety detail, severity levels, cause (fungal/bacterial/viral/pest), prevention tips, and whether fungicide/pesticide is recommended
+- **Soil dataset reference data**: Add a SoilDataPanel to Crop Advisor with reference ranges for NPK, pH, and micronutrients for each recommended crop (from standard agricultural datasets)
+- **Expanded Market Prices dataset**: Increase from 8 to 25 crops with state-wise average prices (Punjab, Maharashtra, Telangana, Tamil Nadu, UP), weekly/monthly trend data, and a price comparison chart
+- **Weather impact data**: Add a WeatherAdvisory section to Dashboard that shows crop-specific weather warnings and advisory based on simulated weather conditions for different Indian states/regions
+- **Kaggle crop recommendation dataset integration**: Expand cropLogic.ts to use a richer rule set derived from the Kaggle Crop Recommendation Dataset (22 crops, NPK ranges, temperature, humidity, rainfall)
 
 ### Modify
-- `diseaseLogic.ts`: Replace 5 placeholder diseases with full 38-class database. Update `detectDisease` to randomly pick from full list (still simulated unless TFjs model loaded).
-- `PlantScanner.tsx`: Add optional TFjs model loader UI (upload model.json + weights). When model is loaded, run real inference; otherwise fall back to simulation.
-- `i18n.ts`: Add keys for encyclopedia tab label and UI strings.
-- `App.tsx`: Add encyclopedia tab.
-- `types.ts`: Add `DiseaseEntry` type for encyclopedia.
+- `diseaseLogic.ts`: Expand from 38 to 54 entries, add severity, cause, prevention, fungicide fields to DiseaseEntry
+- `cropLogic.ts`: Use richer Kaggle-based rules for 22 crops with more accurate NPK/pH ranges
+- `MarketPrices.tsx`: Expand to 25 crops, add state filter, trend chart
+- `Dashboard.tsx`: Add WeatherAdvisory card
+- `DiseaseEncyclopedia.tsx`: Show severity badge, cause tag, prevention tips
+- `types.ts`: Add severity, cause, prevention, fungicide to DiseaseEntry; add state to MarketPrice
+- `i18n.ts`: Add translation keys for new UI sections
 
 ### Remove
-- Nothing removed.
+- Nothing removed
 
 ## Implementation Plan
-1. Update `types.ts` to add `DiseaseEntry` with crop, class, symptoms, treatment fields.
-2. Replace `diseaseLogic.ts` with full 38-class Kaggle dataset entries.
-3. Create `src/frontend/src/tabs/DiseaseEncyclopedia.tsx` with search + filter by crop, list all diseases.
-4. Update `PlantScanner.tsx` to add TFjs model loader (file input for model.json + weights shards), run inference when loaded.
-5. Update `i18n.ts` with new translation keys.
-6. Update `App.tsx` to add encyclopedia tab.
+1. Update `types.ts` with extended DiseaseEntry and MarketPrice types
+2. Expand `diseaseLogic.ts` with 54 entries including severity, cause, prevention, fungicide
+3. Expand `cropLogic.ts` with Kaggle crop recommendation dataset rules (22 crops)
+4. Expand `MarketPrices.tsx` with 25 crops, state filter tabs, trend indicators
+5. Update `DiseaseEncyclopedia.tsx` to display new fields (severity badge, cause, prevention)
+6. Add WeatherAdvisory card to `Dashboard.tsx`
+7. Add translation keys for new sections to `i18n.ts`
