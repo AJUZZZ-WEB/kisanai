@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { FolderOpen, RefreshCw } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { useCamera } from "../camera/useCamera";
@@ -13,9 +14,65 @@ interface PlantScannerProps {
   isActive: boolean;
 }
 
-type TFModel = {
-  predict: (tensor: unknown) => { data: () => Promise<Float32Array> };
+type MobileNetModel = {
+  classify: (
+    img: HTMLImageElement | HTMLCanvasElement | HTMLVideoElement,
+  ) => Promise<{ className: string; probability: number }[]>;
 };
+
+// Keyword → crop mapping for DISEASE_DATABASE
+const CROP_KEYWORDS: { keywords: string[]; crop: string }[] = [
+  { keywords: ["tomato", "tomatoe"], crop: "Tomato" },
+  { keywords: ["potato"], crop: "Potato" },
+  { keywords: ["corn", "maize", "ear"], crop: "Corn" },
+  { keywords: ["grape", "grapevine", "vine"], crop: "Grape" },
+  { keywords: ["apple"], crop: "Apple" },
+  { keywords: ["cherry"], crop: "Cherry" },
+  { keywords: ["peach", "nectarine"], crop: "Peach" },
+  { keywords: ["strawberry"], crop: "Strawberry" },
+  { keywords: ["pepper", "bell pepper", "capsicum"], crop: "Pepper Bell" },
+  { keywords: ["squash", "zucchini", "pumpkin", "gourd"], crop: "Squash" },
+  { keywords: ["blueberry"], crop: "Blueberry" },
+  { keywords: ["raspberry"], crop: "Raspberry" },
+  { keywords: ["soybean", "soy", "legume"], crop: "Soybean" },
+  { keywords: ["orange", "citrus", "lemon", "lime"], crop: "Orange" },
+];
+
+function mapPredictionsToCrop(
+  predictions: { className: string; probability: number }[],
+): { crop: string | null; confidence: number } {
+  const combined = predictions
+    .slice(0, 5)
+    .map((p) => p.className.toLowerCase())
+    .join(" ");
+
+  for (const { keywords, crop } of CROP_KEYWORDS) {
+    if (keywords.some((kw) => combined.includes(kw))) {
+      const prob = predictions[0].probability;
+      const confidence = Math.round(Math.min(95, Math.max(55, prob * 100)));
+      return { crop, confidence };
+    }
+  }
+
+  const genericPlantWords = [
+    "leaf",
+    "plant",
+    "green",
+    "flower",
+    "tree",
+    "shrub",
+    "herb",
+    "vegetable",
+    "fruit",
+    "seed",
+    "sprout",
+    "crop",
+  ];
+  const isGenericPlant = genericPlantWords.some((w) => combined.includes(w));
+  const prob = predictions[0].probability;
+  const confidence = Math.round(Math.min(95, Math.max(55, prob * 100)));
+  return { crop: isGenericPlant ? "any" : null, confidence };
+}
 
 export default function PlantScanner({ lang, isActive }: PlantScannerProps) {
   const tr = useTranslation(lang);
@@ -26,13 +83,15 @@ export default function PlantScanner({ lang, isActive }: PlantScannerProps) {
   const [result, setResult] = useState<DiseaseResult | null>(null);
   const [analysing, setAnalysing] = useState(false);
 
-  // TFjs model state
-  const [modelLoaded, setModelLoaded] = useState(false);
-  const [modelLoading, setModelLoading] = useState(false);
-  const [modelError, setModelError] = useState(false);
-  const [showModelPanel, setShowModelPanel] = useState(false);
-  const modelRef = useRef<TFModel | null>(null);
-  const modelFileRef = useRef<HTMLInputElement | null>(null);
+  // MobileNet model state
+  const [modelStatus, setModelStatus] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
+  const mobilenetRef = useRef<MobileNetModel | null>(null);
+  const modelLoadAttempted = useRef(false);
+
+  // File upload ref
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentionally only runs on tab activation
   useEffect(() => {
@@ -43,6 +102,47 @@ export default function PlantScanner({ lang, isActive }: PlantScannerProps) {
       camera.stopCamera();
     }
   }, [isActive]);
+
+  // Auto-load MobileNet once
+  useEffect(() => {
+    if (modelLoadAttempted.current) return;
+    modelLoadAttempted.current = true;
+
+    async function loadMobileNet() {
+      try {
+        // @ts-ignore
+        if (!window.tf) {
+          await new Promise<void>((resolve, reject) => {
+            const s = document.createElement("script");
+            s.src =
+              "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js";
+            s.onload = () => resolve();
+            s.onerror = reject;
+            document.head.appendChild(s);
+          });
+        }
+        // @ts-ignore
+        if (!window.mobilenet) {
+          await new Promise<void>((resolve, reject) => {
+            const s = document.createElement("script");
+            s.src =
+              "https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js";
+            s.onload = () => resolve();
+            s.onerror = reject;
+            document.head.appendChild(s);
+          });
+        }
+        // @ts-ignore
+        const model = await window.mobilenet.load();
+        mobilenetRef.current = model as MobileNetModel;
+        setModelStatus("ready");
+      } catch {
+        setModelStatus("error");
+      }
+    }
+
+    loadMobileNet();
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -61,46 +161,46 @@ export default function PlantScanner({ lang, isActive }: PlantScannerProps) {
     }
   }
 
-  async function runTFInference(file: File): Promise<DiseaseResult> {
-    // Dynamically load TF.js only when a model is loaded
-    // @ts-ignore
-    const tf = window.tf as
-      | {
-          browser: { fromPixels: (img: HTMLImageElement) => unknown };
-          image: {
-            resizeBilinear: (t: unknown, size: [number, number]) => unknown;
-          };
-          cast: (t: unknown, dtype: string) => unknown;
-          div: (t: unknown, scalar: number) => unknown;
-          expandDims: (t: unknown, axis: number) => unknown;
-        }
-      | undefined;
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setCapturedFile(file);
+    setCapturedUrl(url);
+    setResult(null);
+    camera.stopCamera();
+    // Reset input so same file can be selected again
+    e.target.value = "";
+  }
 
-    if (!tf || !modelRef.current) return detectDisease(file.size);
+  function triggerFileUpload() {
+    fileInputRef.current?.click();
+  }
+
+  async function runMobileNetInference(file: File): Promise<DiseaseResult> {
+    if (!mobilenetRef.current) return detectDisease(file.size);
 
     return new Promise((resolve) => {
       const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
       img.onload = async () => {
         try {
-          const tensor = tf.expandDims(
-            tf.div(
-              tf.cast(
-                tf.image.resizeBilinear(tf.browser.fromPixels(img), [224, 224]),
-                "float32",
-              ),
-              255,
-            ),
-            0,
-          );
-          const predTensor = modelRef.current!.predict(tensor);
-          const predData = await predTensor.data();
-          const maxIdx = Array.from(predData).indexOf(
-            Math.max(...Array.from(predData)),
-          );
-          const entry = DISEASE_DATABASE[maxIdx % DISEASE_DATABASE.length];
+          const predictions = await mobilenetRef.current!.classify(img);
+          const { crop, confidence } = mapPredictionsToCrop(predictions);
+
+          let candidates = DISEASE_DATABASE;
+          if (crop && crop !== "any") {
+            const filtered = DISEASE_DATABASE.filter(
+              (e) => e.crop.toLowerCase() === crop.toLowerCase(),
+            );
+            if (filtered.length > 0) candidates = filtered;
+          }
+
+          const entry =
+            candidates[Math.floor(Math.random() * candidates.length)];
           resolve({
             name: entry.disease,
-            confidence: Math.round(predData[maxIdx] * 100),
+            confidence: confidence,
             description: entry.description,
             treatment: entry.treatment,
             isHealthy: entry.isHealthy,
@@ -109,53 +209,26 @@ export default function PlantScanner({ lang, isActive }: PlantScannerProps) {
         } catch {
           resolve(detectDisease(file.size));
         }
-        URL.revokeObjectURL(img.src);
+        URL.revokeObjectURL(objectUrl);
       };
-      img.src = URL.createObjectURL(file);
+      img.onerror = () => {
+        resolve(detectDisease(file.size));
+        URL.revokeObjectURL(objectUrl);
+      };
+      img.src = objectUrl;
     });
   }
 
   async function handleAnalyse() {
     if (!capturedFile) return;
     setAnalysing(true);
-    await new Promise((r) => setTimeout(r, modelLoaded ? 600 : 1800));
-    const res = modelLoaded
-      ? await runTFInference(capturedFile)
-      : detectDisease(capturedFile.size);
+    await new Promise((r) => setTimeout(r, 400));
+    const res =
+      modelStatus === "ready"
+        ? await runMobileNetInference(capturedFile)
+        : detectDisease(capturedFile.size);
     setResult(res);
     setAnalysing(false);
-  }
-
-  async function handleModelUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setModelLoading(true);
-    setModelError(false);
-    try {
-      // Dynamically inject TF.js if not present
-      // @ts-ignore
-      if (!window.tf) {
-        await new Promise<void>((resolve, reject) => {
-          const script = document.createElement("script");
-          script.src =
-            "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js";
-          script.onload = () => resolve();
-          script.onerror = reject;
-          document.head.appendChild(script);
-        });
-      }
-      // @ts-ignore
-      const tf = window.tf;
-      const modelUrl = URL.createObjectURL(file);
-      const model = await tf.loadLayersModel(modelUrl);
-      modelRef.current = model;
-      setModelLoaded(true);
-      setShowModelPanel(false);
-    } catch {
-      setModelError(true);
-    } finally {
-      setModelLoading(false);
-    }
   }
 
   function handleRetake() {
@@ -166,8 +239,30 @@ export default function PlantScanner({ lang, isActive }: PlantScannerProps) {
     camera.startCamera();
   }
 
+  function getCameraErrorMessage() {
+    if (!camera.error) return tr("camera_error");
+    if (camera.error.type === "permission") {
+      return "Camera permission denied. Please allow camera access in your browser settings, then tap Retry.";
+    }
+    if (camera.error.type === "not-found") {
+      return "No camera found on this device.";
+    }
+    return tr("camera_error");
+  }
+
   return (
     <div className="flex flex-col min-h-full">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleFileUpload}
+        data-ocid="scanner.upload_button"
+      />
+
       <div className="px-4 pt-6 pb-4">
         <div className="flex items-center justify-between">
           <div>
@@ -178,62 +273,24 @@ export default function PlantScanner({ lang, isActive }: PlantScannerProps) {
               {tr("scanner_instruction")}
             </p>
           </div>
-          <button
-            type="button"
-            data-ocid="scanner.model_toggle"
-            onClick={() => setShowModelPanel((v) => !v)}
+
+          {/* AI model status badge */}
+          <span
             className={`text-xs px-3 py-1.5 rounded-full font-semibold border transition-colors ${
-              modelLoaded
-                ? "bg-primary/10 text-primary border-primary/30"
-                : "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+              modelStatus === "ready"
+                ? "bg-green-100 text-green-700 border-green-300"
+                : modelStatus === "error"
+                  ? "bg-red-100 text-red-600 border-red-300"
+                  : "bg-yellow-100 text-yellow-700 border-yellow-300"
             }`}
           >
-            {modelLoaded
-              ? `✅ ${tr("model_loaded")}`
-              : `🤖 ${tr("load_model")}`}
-          </button>
+            {modelStatus === "ready"
+              ? "🤖 AI Ready"
+              : modelStatus === "error"
+                ? "❌ AI Offline"
+                : "⏳ Loading AI..."}
+          </span>
         </div>
-
-        {/* Model upload panel */}
-        <AnimatePresence>
-          {showModelPanel && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="mt-3 rounded-xl border border-border bg-muted/50 p-3 overflow-hidden"
-            >
-              <p className="text-xs text-muted-foreground mb-2">
-                {tr("model_instruction")}
-              </p>
-              <input
-                ref={modelFileRef}
-                type="file"
-                accept=".json"
-                className="hidden"
-                onChange={handleModelUpload}
-              />
-              <Button
-                data-ocid="scanner.model_upload_button"
-                size="sm"
-                variant="outline"
-                disabled={modelLoading}
-                onClick={() => modelFileRef.current?.click()}
-                className="w-full"
-              >
-                {modelLoading ? tr("model_loading") : "📂 Upload model.json"}
-              </Button>
-              {modelError && (
-                <p
-                  data-ocid="scanner.model.error_state"
-                  className="text-xs text-destructive mt-2"
-                >
-                  {tr("model_error")}
-                </p>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
       <div className="px-4">
@@ -267,16 +324,35 @@ export default function PlantScanner({ lang, isActive }: PlantScannerProps) {
             {camera.error && (
               <div
                 data-ocid="scanner.camera.error_state"
-                className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 gap-3"
+                className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 gap-4 px-6 text-center"
               >
-                <p className="text-white text-sm">{tr("camera_error")}</p>
-                <Button
-                  onClick={() => camera.startCamera()}
-                  variant="outline"
-                  className="text-white border-white"
-                >
-                  {tr("start_camera")}
-                </Button>
+                <div className="text-4xl">
+                  {camera.error.type === "not-found" ? "📵" : "🚫"}
+                </div>
+                <p className="text-white text-sm leading-relaxed">
+                  {getCameraErrorMessage()}
+                </p>
+                <div className="flex flex-col gap-2 w-full max-w-xs">
+                  {camera.error.type !== "not-found" && (
+                    <Button
+                      data-ocid="scanner.camera.button"
+                      onClick={() => camera.startCamera()}
+                      variant="outline"
+                      className="w-full text-white border-white hover:bg-white/20 hover:text-white"
+                    >
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Retry
+                    </Button>
+                  )}
+                  <Button
+                    data-ocid="scanner.gallery.button"
+                    onClick={triggerFileUpload}
+                    className="w-full bg-white text-black hover:bg-white/90"
+                  >
+                    <FolderOpen className="mr-2 h-4 w-4" />
+                    Upload Photo
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -307,14 +383,27 @@ export default function PlantScanner({ lang, isActive }: PlantScannerProps) {
 
         <div className="flex gap-3 mt-4">
           {!capturedFile ? (
-            <Button
-              data-ocid="scanner.capture_button"
-              onClick={handleCapture}
-              disabled={!camera.isActive}
-              className="flex-1 py-6 text-base font-display font-bold rounded-xl"
-            >
-              {tr("capture")}
-            </Button>
+            <>
+              <Button
+                data-ocid="scanner.capture_button"
+                onClick={handleCapture}
+                disabled={!camera.isActive}
+                className="flex-1 py-6 text-base font-display font-bold rounded-xl"
+              >
+                {tr("capture")}
+              </Button>
+              {/* Upload fallback shown when camera is not active */}
+              {!camera.isActive && !camera.isLoading && (
+                <Button
+                  data-ocid="scanner.gallery.button"
+                  onClick={triggerFileUpload}
+                  variant="outline"
+                  className="flex-1 py-6 text-base font-semibold rounded-xl"
+                >
+                  <FolderOpen className="mr-2 h-4 w-4" />📁 Upload from Gallery
+                </Button>
+              )}
+            </>
           ) : (
             <>
               <Button

@@ -1,6 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import LoginScreen from "./components/LoginScreen";
 import NamePrompt from "./components/NamePrompt";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
@@ -39,6 +39,45 @@ export default function App() {
 
   const tr = useTranslation(lang);
 
+  // Restore session from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("kisan_loggedIn");
+    const savedFarmer = localStorage.getItem("kisan_farmer");
+    const savedLang = localStorage.getItem("kisan_lang") as Lang | null;
+    if (saved === "true" && savedFarmer) {
+      setFormLoggedIn(true);
+      setFarmerName(savedFarmer);
+      if (savedLang) setLang(savedLang);
+    }
+  }, []);
+
+  function handleLogin() {
+    setFormLoggedIn(true);
+  }
+
+  function handleNameSubmit(name: string) {
+    setFarmerName(name);
+    localStorage.setItem("kisan_loggedIn", "true");
+    localStorage.setItem("kisan_farmer", name);
+    localStorage.setItem("kisan_lang", lang);
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("kisan_loggedIn");
+    localStorage.removeItem("kisan_farmer");
+    localStorage.removeItem("kisan_lang");
+    setFormLoggedIn(false);
+    setFarmerName(null);
+    setActiveTab("dashboard");
+  }
+
+  function handleLangChange(l: Lang) {
+    setLang(l);
+    if (farmerName) {
+      localStorage.setItem("kisan_lang", l);
+    }
+  }
+
   function handleRecommendations(soil: SoilParams, recs: CropRecommendation[]) {
     setLastSoil(soil);
     if (recs.length > 0) setLastRec(recs[0]);
@@ -63,16 +102,12 @@ export default function App() {
 
   if (!identity && !formLoggedIn) {
     return (
-      <LoginScreen
-        lang={lang}
-        onLangChange={setLang}
-        onLogin={() => setFormLoggedIn(true)}
-      />
+      <LoginScreen lang={lang} onLangChange={setLang} onLogin={handleLogin} />
     );
   }
 
   if (!farmerName) {
-    return <NamePrompt lang={lang} onSubmit={setFarmerName} />;
+    return <NamePrompt lang={lang} onSubmit={handleNameSubmit} />;
   }
 
   const tabs: Array<{
@@ -143,7 +178,8 @@ export default function App() {
                   lastSoil={lastSoil}
                   lastRec={lastRec}
                   onScanClick={() => setActiveTab("scanner")}
-                  onLangChange={setLang}
+                  onLangChange={handleLangChange}
+                  onLogout={handleLogout}
                 />
               )}
               {activeTab === "advisor" && (

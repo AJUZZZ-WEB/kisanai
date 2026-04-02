@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send } from "lucide-react";
+import { Mic, MicOff, Send } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { getBotResponse } from "../chatLogic";
@@ -13,10 +13,27 @@ interface AdvisoryChatProps {
   lang: Lang;
 }
 
+const LANG_TO_SPEECH: Record<Lang, string> = {
+  en: "en-IN",
+  hi: "hi-IN",
+  ta: "ta-IN",
+  ml: "ml-IN",
+  te: "te-IN",
+  kn: "kn-IN",
+  mr: "mr-IN",
+};
+
 const WELCOME_EN =
   "🌾 Namaste! I'm your KisanAI Farm Advisor. Ask me anything about crops, irrigation, fertilizers, pests, or market prices. I'm here to help!";
 const WELCOME_HI =
   "🌾 नमस्ते! मैं आपका किसान AI सलाहकार हूं। फसल, सिंचाई, खाद, कीट या बाज़ार मूल्य के बारे में कुछ भी पूछें।";
+
+// biome-ignore lint/suspicious/noExplicitAny: SpeechRecognition types vary across browsers
+const SpeechRecognitionAPI: any =
+  typeof window !== "undefined"
+    ? (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition
+    : null;
 
 export default function AdvisoryChat({ lang }: AdvisoryChatProps) {
   const tr = useTranslation(lang);
@@ -30,12 +47,50 @@ export default function AdvisoryChat({ lang }: AdvisoryChatProps) {
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [isListening, setIsListening] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: intentional scroll-to-bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
+
+  // Stop recognition on unmount
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
+  }, []);
+
+  function startListening() {
+    if (!SpeechRecognitionAPI) return;
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    const recognition = new SpeechRecognitionAPI();
+    recognition.lang = LANG_TO_SPEECH[lang] ?? "en-IN";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setInput(transcript);
+      setIsListening(false);
+    };
+    recognition.onerror = () => {
+      setIsListening(false);
+    };
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+    recognitionRef.current = recognition;
+    recognition.start();
+    setIsListening(true);
+  }
 
   async function handleSend() {
     const text = input.trim();
@@ -68,13 +123,16 @@ export default function AdvisoryChat({ lang }: AdvisoryChatProps) {
 
   const quickPrompts =
     lang === "hi"
-      ? ["सिंचाई कब करें?", "NPK खाद", "कीट नियंत्रण", "मंडी भाव"]
+      ? ["सिंचाई कब करें?", "NPK खाद", "कीट नियंत्रण", "मंडी भाव", "PM-किसान योजना"]
       : [
           "When to irrigate?",
           "NPK fertilizer",
           "Pest control",
           "Market prices",
+          "PM-KISAN scheme",
         ];
+
+  const speechSupported = !!SpeechRecognitionAPI;
 
   return (
     <div className="flex flex-col h-full">
@@ -172,6 +230,22 @@ export default function AdvisoryChat({ lang }: AdvisoryChatProps) {
 
       {/* Input */}
       <div className="px-4 py-3 border-t border-border bg-background">
+        {isListening && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 mb-2 px-2"
+          >
+            <motion.div
+              className="w-2 h-2 rounded-full bg-red-500"
+              animate={{ scale: [1, 1.4, 1] }}
+              transition={{ duration: 0.8, repeat: Number.POSITIVE_INFINITY }}
+            />
+            <span className="text-xs text-red-500 font-semibold">
+              {tr("tap_mic")}
+            </span>
+          </motion.div>
+        )}
         <div className="flex gap-2">
           <Input
             data-ocid="chat.input"
@@ -181,6 +255,22 @@ export default function AdvisoryChat({ lang }: AdvisoryChatProps) {
             placeholder={tr("chat_placeholder")}
             className="flex-1 rounded-xl"
           />
+          {speechSupported && (
+            <Button
+              data-ocid="chat.voice_button"
+              type="button"
+              onClick={startListening}
+              variant={isListening ? "destructive" : "outline"}
+              className="px-3 rounded-xl"
+              title={tr("voice_input")}
+            >
+              {isListening ? (
+                <MicOff className="w-4 h-4" />
+              ) : (
+                <Mic className="w-4 h-4" />
+              )}
+            </Button>
+          )}
           <Button
             data-ocid="chat.submit_button"
             onClick={handleSend}

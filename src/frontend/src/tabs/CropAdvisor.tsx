@@ -79,6 +79,14 @@ export default function CropAdvisor({
     Zaid: "bg-orange-100 text-orange-800",
   };
 
+  function getSustainLabel(score: number): { label: string; color: string } {
+    if (score >= 70)
+      return { label: "High", color: "bg-emerald-100 text-emerald-800" };
+    if (score >= 40)
+      return { label: "Medium", color: "bg-amber-100 text-amber-800" };
+    return { label: "Low", color: "bg-red-100 text-red-800" };
+  }
+
   return (
     <div className="px-4 py-6 flex flex-col gap-6">
       {/* Soil Inputs */}
@@ -215,100 +223,150 @@ export default function CropAdvisor({
               🏆 {tr("recommendations")}
             </h2>
             <div className="flex flex-col gap-3">
-              {recommendations.map((rec, i) => (
-                <motion.div
-                  key={rec.name}
-                  initial={{ opacity: 0, x: -16 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.1 }}
-                >
-                  <Card className="shadow-card border-0 overflow-hidden">
-                    <div
-                      className="h-1.5"
-                      style={{
-                        background:
-                          i === 0
-                            ? "oklch(0.75 0.17 65)"
-                            : i === 1
-                              ? "oklch(0.40 0.13 145)"
-                              : "oklch(0.65 0.15 200)",
-                      }}
-                    />
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <span className="text-2xl">{rec.emoji}</span>
-                          <div>
-                            <h3 className="font-display font-bold text-foreground">
-                              {rec.name}
-                            </h3>
-                            {i === 0 && (
-                              <Badge className="text-xs bg-amber-100 text-amber-800 hover:bg-amber-100">
-                                {tr("best_match")}
-                              </Badge>
-                            )}
+              {recommendations.map((rec, i) => {
+                const sustain = getSustainLabel(rec.sustainScore);
+                return (
+                  <motion.div
+                    key={rec.name}
+                    initial={{ opacity: 0, x: -16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.1 }}
+                  >
+                    <Card className="shadow-card border-0 overflow-hidden">
+                      <div
+                        className="h-1.5"
+                        style={{
+                          background:
+                            i === 0
+                              ? "oklch(0.75 0.17 65)"
+                              : i === 1
+                                ? "oklch(0.40 0.13 145)"
+                                : "oklch(0.65 0.15 200)",
+                        }}
+                      />
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl">{rec.emoji}</span>
+                            <div>
+                              <h3 className="font-display font-bold text-foreground">
+                                {rec.name}
+                              </h3>
+                              {i === 0 && (
+                                <Badge className="text-xs bg-amber-100 text-amber-800 hover:bg-amber-100">
+                                  {tr("best_match")}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          <span className="text-2xl font-bold text-primary">
+                            #{i + 1}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col gap-2 mb-3">
+                          {[
+                            {
+                              label: tr("yield_score"),
+                              value: rec.yieldScore,
+                              color: "oklch(0.40 0.13 145)",
+                            },
+                            {
+                              label: tr("profit_score"),
+                              value: rec.profitScore,
+                              color: "oklch(0.75 0.17 65)",
+                            },
+                            {
+                              label: tr("sustain_score"),
+                              value: rec.sustainScore,
+                              color: "oklch(0.55 0.15 200)",
+                            },
+                          ].map(({ label, value, color }) => (
+                            <div key={label}>
+                              <div className="flex justify-between text-xs mb-1">
+                                <span className="text-muted-foreground">
+                                  {label}
+                                </span>
+                                <span className="font-semibold text-foreground">
+                                  {value}/100
+                                </span>
+                              </div>
+                              <div className="score-bar">
+                                <motion.div
+                                  className="score-fill"
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${value}%` }}
+                                  transition={{
+                                    duration: 0.8,
+                                    delay: i * 0.1 + 0.3,
+                                  }}
+                                  style={{ background: color }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="bg-muted/60 rounded-lg p-3 mb-3">
+                          <p className="text-xs font-semibold text-primary mb-1">
+                            💡 {tr("tip")}
+                          </p>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            {rec.tip}
+                          </p>
+                        </div>
+
+                        {/* Yield Forecast Card */}
+                        <div
+                          className="rounded-xl p-3"
+                          style={{ background: "oklch(0.95 0.04 145)" }}
+                        >
+                          <p className="text-xs font-semibold text-primary uppercase tracking-wide mb-2">
+                            📊 {tr("yield_forecast")}
+                          </p>
+                          <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                            <div>
+                              <p className="text-muted-foreground">
+                                {tr("est_yield")}
+                              </p>
+                              <p className="font-bold text-foreground">
+                                {Math.round(rec.yieldScore * 0.4)}–
+                                {Math.round(rec.yieldScore * 0.5)} q/acre
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">
+                                {tr("est_profit")}
+                              </p>
+                              <p className="font-bold text-foreground">
+                                ₹
+                                {(rec.profitScore * 300).toLocaleString(
+                                  "en-IN",
+                                )}
+                                –₹
+                                {(rec.profitScore * 400).toLocaleString(
+                                  "en-IN",
+                                )}
+                                /acre
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-muted-foreground">
+                              {tr("sustainability")}:
+                            </p>
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded-full font-semibold ${sustain.color}`}
+                            >
+                              {sustain.label}
+                            </span>
                           </div>
                         </div>
-                        <span className="text-2xl font-bold text-primary">
-                          #{i + 1}
-                        </span>
-                      </div>
-
-                      <div className="flex flex-col gap-2 mb-3">
-                        {[
-                          {
-                            label: tr("yield_score"),
-                            value: rec.yieldScore,
-                            color: "oklch(0.40 0.13 145)",
-                          },
-                          {
-                            label: tr("profit_score"),
-                            value: rec.profitScore,
-                            color: "oklch(0.75 0.17 65)",
-                          },
-                          {
-                            label: tr("sustain_score"),
-                            value: rec.sustainScore,
-                            color: "oklch(0.55 0.15 200)",
-                          },
-                        ].map(({ label, value, color }) => (
-                          <div key={label}>
-                            <div className="flex justify-between text-xs mb-1">
-                              <span className="text-muted-foreground">
-                                {label}
-                              </span>
-                              <span className="font-semibold text-foreground">
-                                {value}/100
-                              </span>
-                            </div>
-                            <div className="score-bar">
-                              <motion.div
-                                className="score-fill"
-                                initial={{ width: 0 }}
-                                animate={{ width: `${value}%` }}
-                                transition={{
-                                  duration: 0.8,
-                                  delay: i * 0.1 + 0.3,
-                                }}
-                                style={{ background: color }}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="bg-muted/60 rounded-lg p-3">
-                        <p className="text-xs font-semibold text-primary mb-1">
-                          💡 {tr("tip")}
-                        </p>
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                          {rec.tip}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                );
+              })}
             </div>
           </motion.div>
         )}
