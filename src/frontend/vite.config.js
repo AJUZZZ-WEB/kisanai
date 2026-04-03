@@ -3,12 +3,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import environment from "vite-plugin-environment";
 
-const ii_url =
-  process.env.DFX_NETWORK === "local"
-    ? `http://rdmx6-jaaaa-aaaaa-aaadq-cai.localhost:8081/`
-    : `https://identity.internetcomputer.org/`;
-
-process.env.II_URL = process.env.II_URL || ii_url;
+process.env.II_URL = process.env.II_URL || "https://identity.internetcomputer.org/";
 process.env.STORAGE_GATEWAY_URL =
   process.env.STORAGE_GATEWAY_URL || "https://blob.caffeine.ai";
 
@@ -30,12 +25,8 @@ export default defineConfig({
     },
   },
   server: {
-    proxy: {
-      "/api": {
-        target: "http://127.0.0.1:4943",
-        changeOrigin: true,
-      },
-    },
+    port: 3000,
+    open: true,
   },
   plugins: [
     environment("all", { prefix: "CANISTER_" }),

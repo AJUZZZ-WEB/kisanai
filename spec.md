@@ -1,38 +1,26 @@
-# KisanAI – Kaggle Dataset Expansion
+# KisanAI
 
 ## Current State
-- Plant Scanner has 38 PlantVillage disease classes with symptoms/treatments in `diseaseLogic.ts`
-- Disease Encyclopedia browses/filters these 38 entries
-- Market Prices shows 8 static crops with dummy prices
-- Crop Advisor uses rule-based logic in `cropLogic.ts`
-- i18n supports 7 languages (en, hi, ta, ml, te, kn, mr)
+The frontend uses ICP/Motoko backend dependencies: `@dfinity/auth-client`, `@icp-sdk/core`, and the `InternetIdentityProvider` wrapper. The `useInternetIdentity` hook tries to initialize an `AuthClient` on mount, which causes the app to hang or error when running locally without a running ICP local replica or `dfx`. The `App.tsx` waits for `isInitializing` to be false before rendering, which is gated on the ICP auth client.
 
 ## Requested Changes (Diff)
 
 ### Add
-- **Expanded PlantVillage disease database**: Break down the 38 classes into 54 entries with crop variety detail, severity levels, cause (fungal/bacterial/viral/pest), prevention tips, and whether fungicide/pesticide is recommended
-- **Soil dataset reference data**: Add a SoilDataPanel to Crop Advisor with reference ranges for NPK, pH, and micronutrients for each recommended crop (from standard agricultural datasets)
-- **Expanded Market Prices dataset**: Increase from 8 to 25 crops with state-wise average prices (Punjab, Maharashtra, Telangana, Tamil Nadu, UP), weekly/monthly trend data, and a price comparison chart
-- **Weather impact data**: Add a WeatherAdvisory section to Dashboard that shows crop-specific weather warnings and advisory based on simulated weather conditions for different Indian states/regions
-- **Kaggle crop recommendation dataset integration**: Expand cropLogic.ts to use a richer rule set derived from the Kaggle Crop Recommendation Dataset (22 crops, NPK ranges, temperature, humidity, rainfall)
+- A standalone mock for `useInternetIdentity` that immediately returns `isInitializing: false` and `identity: undefined` without touching any ICP libraries
+- A `vite.config.js` `dev` port configuration so it starts on port 3000
 
 ### Modify
-- `diseaseLogic.ts`: Expand from 38 to 54 entries, add severity, cause, prevention, fungicide fields to DiseaseEntry
-- `cropLogic.ts`: Use richer Kaggle-based rules for 22 crops with more accurate NPK/pH ranges
-- `MarketPrices.tsx`: Expand to 25 crops, add state filter, trend chart
-- `Dashboard.tsx`: Add WeatherAdvisory card
-- `DiseaseEncyclopedia.tsx`: Show severity badge, cause tag, prevention tips
-- `types.ts`: Add severity, cause, prevention, fungicide to DiseaseEntry; add state to MarketPrice
-- `i18n.ts`: Add translation keys for new UI sections
+- `useInternetIdentity.ts`: Replace the ICP AuthClient initialization with a simple stub that works offline (no ICP SDK calls), so the app boots immediately in VS Code with just `npm run dev`
+- `main.tsx`: Remove `InternetIdentityProvider` wrapper (or make it a no-op) since it's not needed for the form-based login flow
+- `vite.config.js`: Add `server.port: 3000` and remove the ICP proxy that requires dfx running
+- Add a `dev` script to `package.json` that runs `vite`
 
 ### Remove
-- Nothing removed
+- Nothing functional removed -- all KisanAI features remain intact
 
 ## Implementation Plan
-1. Update `types.ts` with extended DiseaseEntry and MarketPrice types
-2. Expand `diseaseLogic.ts` with 54 entries including severity, cause, prevention, fungicide
-3. Expand `cropLogic.ts` with Kaggle crop recommendation dataset rules (22 crops)
-4. Expand `MarketPrices.tsx` with 25 crops, state filter tabs, trend indicators
-5. Update `DiseaseEncyclopedia.tsx` to display new fields (severity badge, cause, prevention)
-6. Add WeatherAdvisory card to `Dashboard.tsx`
-7. Add translation keys for new sections to `i18n.ts`
+1. Replace `useInternetIdentity` hook with a standalone stub that never calls ICP SDK
+2. Update `main.tsx` to not require `InternetIdentityProvider`
+3. Update `vite.config.js`: add `server.port: 3000`, keep environment plugins but remove dfx proxy requirement
+4. Add `"dev": "vite"` to `package.json` scripts
+5. Add a `README-LOCAL.md` with simple local setup instructions
